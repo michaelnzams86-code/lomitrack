@@ -1,0 +1,72 @@
+from flask import Flask, request, jsonify, send_from_directory
+import sqlite3
+from datetime import datetime, timedelta
+
+app = Flask(__name__, static_folder="static")
+
+def connect_db():
+    return sqlite3.connect("expenses.db")
+
+def create_table():
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            amount REAL,
+            date TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+create_table()
+
+@app.route("/")
+def index():
+    return send_from_directory("static", "index.html")
+
+@app.route("/add", methods=["POST"])
+def add_expense():
+    data = request.json
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO expenses (title, amount, date) VALUES (?, ?, ?)",
+                   (data["title"], data["amount"], data["date"]))
+    conn.commit()
+    conn.close()
+    return jsonify({"message": "Added"})
+
+@app.route("/expenses")
+def expenses():
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT title, amount, date FROM expenses ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return jsonify([{"title": r[0], "amount": r[1], "date": r[2]} for r in rows])
+
+@app.route("/totals")
+def totals():
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    week = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    month = datetime.now().strftime("%Y-%m")
+
+    cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
+    daily = cursor.fetchone()[0] or 0
+
+    cursor.execute("SELECT SUM(amount) FROM expenses WHERE date >= ?", (week,))
+    weekly = cursor.fetchone()[0] or 0
+
+    cursor.execute("SELECT SUM(amount) FROM expenses WHERE date LIKE ?", (month + "%",))
+    monthly = cursor.fetchone()[0] or 0
+
+    conn.close()
+    return jsonify({"daily": daily, "weekly": weekly, "monthly": monthly})
+
+if __name__ == "__main__":
+    app.run(debug=True)

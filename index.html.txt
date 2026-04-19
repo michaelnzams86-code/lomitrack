@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Expense Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<h2>Expense Tracker</h2>
+
+<input id="title" placeholder="Title">
+<input id="amount" type="number" placeholder="Amount">
+<input id="date" type="date">
+<button onclick="addExpense()">Add</button>
+
+<h3>Totals</h3>
+<p id="totals"></p>
+
+<canvas id="chart"></canvas>
+
+<script>
+async function addExpense(){
+  await fetch('/add', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      title: title.value,
+      amount: amount.value,
+      date: date.value
+    })
+  });
+  load();
+}
+
+async function load(){
+  let t = await (await fetch('/totals')).json();
+  totals.innerText = `Daily: ${t.daily} Weekly: ${t.weekly} Monthly: ${t.monthly}`;
+
+  let data = await (await fetch('/expenses')).json();
+  let labels = data.map(e=>e.date);
+  let values = data.map(e=>e.amount);
+
+  new Chart(document.getElementById('chart'), {
+    type:'line',
+    data:{labels:labels, datasets:[{label:'Expenses', data:values}]}
+  });
+}
+load();
+</script>
+
+</body>
+</html>
